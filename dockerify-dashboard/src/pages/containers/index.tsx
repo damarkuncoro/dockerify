@@ -1,9 +1,10 @@
 // src/pages/containers/index.tsx
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import HoloEffect from './HoloEffect';
-import './index.css'; // Assuming you have a CSS file for styles
-import { BrowserRouter } from 'react-router-dom';
+import ContainerCategory from './ContainerCategory'; // Pastikan path sesuai struktur proyekmu
+
+
+
 
 interface Container {
   id: string;
@@ -11,6 +12,7 @@ interface Container {
   image?: string;
   state?: string;
   status?: string;
+  created?: string;
 }
 
 
@@ -19,27 +21,48 @@ const ContainerPage = () => {
   const [containers, setContainers] = useState<Container[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<{ [id: string]: string }>({});
+
+
+  const fetchContainers = () => {
+    axios
+      .get('/api/containers')
+      .then((res) => {
+        setContainers(res.data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('API Error:', err);
+        setError('Failed to load containers');
+        setLoading(false);
+      });
+  };
+
+  const performAction = async (id: string, action: 'start' | 'stop' | 'restart' | 'remove') => {
+    try {
+      setActionLoading((prev) => ({ ...prev, [id]: action }));
+      await axios.post(`/api/containers/${id}/${action}`);
+      fetchContainers();
+    } catch (err) {
+      console.error(`Failed to ${action} container:`, err);
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [id]: '' }));
+    }
+  };
 
   useEffect(() => {
-    const fetchContainers = () => {
-      axios.get('/api/containers')
-        .then(res => {
-          console.log("API Response:", res.data);
-          setContainers(res.data);
-          setLoading(false);
-        })
-        .catch(err => {
-          console.log("API Error:", err);
-          setError('Failed to load containers');
-          setLoading(false);
-        });
-    };
-
     fetchContainers();
     const interval = setInterval(fetchContainers, 10000);
-
     return () => clearInterval(interval);
   }, []);
+
+  // Helper: Deteksi image database
+const isDatabaseImage = (image?: string) => {
+  if (!image) return false;
+  const lower = image.toLowerCase();
+  return ['mysql', 'postgres', 'mariadb', 'mongo', 'redis'].some((db) => lower.includes(db));
+};
+
 
   return (
     <div className="">
@@ -47,96 +70,90 @@ const ContainerPage = () => {
       {error && <p className="text-center text-red-500">{error}</p>}
 
       {!loading && !error && (
-        <div className="mb-0">
-          <p>Please checkout the newer version of this;
-            <a target="_top" href="https://codepen.io/simeydotme/pen/abYWJdX">https://codepen.io/simeydotme/pen/abYWJdX</a>
-          </p>
-          <h1>Pokemon Card, Holo Effect</h1>
-        </div>
+        <></>
       )}
 
       {!loading && !error && containers.length === 0 && (
         <p className="text-center text-gray-500">No containers found.</p>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {containers.map((container, index) => (
-          <div key={container.id} className="card w-[71.5vw] h-[100vw] bg-gradient-to-br from-blue-900 via-indigo-800 to-indigo-900 text-white rounded-xl shadow-xl overflow-hidden relative font-mono hover:scale-105">
-            <div style={{
-              // position: 'absolute',
-              bottom: '1rem',
-              // left: '1rem',
-              right: '1rem',
-              // backgroundColor: 'rgba(0,0,0,0.2)',
-              padding: '8px',
-              borderRadius: '0.5rem',
-              zIndex: 5,
-              color: '#fff',
-              fontFamily: 'monospace',
-              fontSize: '0.9rem',
-              lineHeight: 1.4,
-              height: '100%',
-            }}>
-
-              {/* Header - Title & Status */}
-              <div className="flex items-start justify-between gap-2 px-4 pt-3 pb-2 bg-black/30">
-                <span className="absolute top-1 right-3 px-2 py-1 text-xs rounded-full ${c.status === 'running' ? 'bg-green-500' : 'bg-red-500'} font-bold shadow text-[min(12px,3.5vw)] ">
-                  {container.state === 'running' ? '✅ Running' : '⛔ Stopped'}
-                </span>
-                
-                <h2 className="text-center text-2xl font-bold uppercase mb-1 text-[min(12px,3.5vw)]">{container.image}</h2>
-
-
-
-              </div>
-              <div className="bg-black/60 text-xs px-2 py-1 rounded whitespace-nowrap">
-                80:80
-              </div>
-
-
-              {/* Body */}
-              <div className="px-4 py-3 space-y-1 text-sm">
-                <div><strong>Image:</strong> nginx:latest</div>
-                <div><strong>Status:</strong> Running</div>
-                <div><strong>Type:</strong> Container</div>
-                <div><strong>Created:</strong> 2 hours ago</div>
-              </div>
-
-              {/* Footer */}
-              <div className="absolute bottom-0 w-full px-4 py-2 text-[0.75rem] italic bg-black/40">
-                “A lightweight and fast web server container built on the latest NGINX...”
-              </div>
-
-
-              {/* Card Image / Effect Placeholder */}
-
-              {/* Card Info Section */}
-
-
-              {/* Description / Flavor Text */}
-
-
-
-
-
-
-            </div>
-          </div>
-        ))}
+      <div className="overflow-x-auto">
+        <table className="min-w-full bg-gray-600 shadow-md rounded-xl overflow-hidden">
+          <thead>
+            <tr className="bg-indigo-700 text-left text-sm uppercase tracking-wider">
+              <th className="px-4 py-3">Container</th>
+              <th className="px-4 py-3">Image</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Created</th>
+              <th className="px-4 py-3 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-700">
+            {containers.map((container) => (
+              <tr key={container.id} className="hover:bg-gray-700/50 transition duration-150">
+                <td className="px-4 py-3 font-semibold">{container.name}</td>
+                <td className="px-4 py-3">{container.image}</td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`px-2 py-1 text-xs font-semibold rounded-full ${container.state === 'running'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-red-600 text-white'
+                      }`}
+                  >
+                    {container.state?.toUpperCase() ?? 'UNKNOWN'}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm">{container.created}</td>
+                <td className="px-4 py-3 space-x-2 text-xs text-center">
+                  {container.state !== 'running' && (
+                    <button
+                      onClick={() => performAction(container.id, 'start')}
+                      disabled={actionLoading[container.id] === 'start'}
+                      className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded shadow disabled:opacity-50"
+                    >
+                      {actionLoading[container.id] === 'start' ? 'Starting...' : '✅ Start'}
+                    </button>
+                  )}
+                  {container.state === 'running' && (
+                    <>
+                      <button
+                        onClick={() => performAction(container.id, 'stop')}
+                        disabled={actionLoading[container.id] === 'stop'}
+                        className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded shadow disabled:opacity-50"
+                      >
+                        {actionLoading[container.id] === 'stop' ? 'Stopping...' : '⛔ Stop'}
+                      </button>
+                      <button
+                        onClick={() => performAction(container.id, 'restart')}
+                        disabled={actionLoading[container.id] === 'restart'}
+                        className="bg-yellow-500 hover:bg-yellow-600 px-2 py-1 rounded shadow disabled:opacity-50"
+                      >
+                        {actionLoading[container.id] === 'restart' ? 'Restarting...' : '🔁 Restart'}
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => performAction(container.id, 'remove')}
+                    disabled={actionLoading[container.id] === 'remove'}
+                    className="bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded shadow disabled:opacity-50"
+                  >
+                    {actionLoading[container.id] === 'remove' ? 'Removing...' : '🗑 Remove'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-
-      <style className="hover"></style>
-      <section className="demo">
-        <div className="card"></div>
-        <span className="operator">+</span>
-        <div className="card"><span>color-dodge</span></div>
-        <span className="operator">+</span>
-        <div className="card"><span>color-dodge</span></div>
-      </section>
-
-
-      <HoloEffect />
+    {/* ✅ Tabel khusus container kategori Database */}
+    <ContainerCategory
+      title="📂 Database Containers"
+      containers={containers.filter((c) => isDatabaseImage(c.image))}
+      onAction={performAction}
+      actionLoading={actionLoading}
+    />
     </div>
+    
   );
 }
 
